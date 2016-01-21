@@ -4,7 +4,8 @@
               [secretary.core :as secretary :include-macros true]
               [accountant.core :as accountant]
               [ajax.core :refer  [ajax-request url-request-format json-response-format]]
-              [cemerick.url :as url]))
+              [cemerick.url :as url]
+              [clojure.string :refer [join trim]]))
 
 (def ^:private as-url-prefix "http://ws.audioscrobbler.com/2.0/?method=")
 (def ^:private as-url-suffix "api_key=4d9d38032cb68351994d53a6622d5db7&format=json")
@@ -29,10 +30,59 @@
                              :username ""
                              :artist ""
                              :start-time "" :start-timestamp 0
-                             :end-time "" :end-timestamp 0}))
+                             :end-time "" :end-timestamp 0
+                             :response "No hay nada"
+                             :error []
+                             :err-str [:p "Nada"]}))
+
+(def ^:private lepton-errors
+  {:username {:f #(empty? (trim (:username @lepton))) :e "Add a username, ya leper"}
+   :artist {:f #(empty? (trim (:artist @lepton))) :e "An artist is required, ya mullosk"}
+   :start-timestamp {:f #(= 0 (:start-timestamp @lepton)) :e "A valid start date is recommended, muon-boy"}
+   :end-timestamp {:f #(= 0 (:end-timestamp @lepton)) :e "A decent end date is your friend"}})
+
+(defn artist-tracks [res]
+  (let [tracks (:track (:artisttracks res))]
+    (vec (cons :div.tracks
+               (map (fn [track]
+                      [:div.track
+                        [:div.date (:#text (:date track))]
+                        [:div.artist (:#text (:artist track))]
+                        [:div.name (:name track)]
+                        [:div.album (:#text (:album track))]])
+                    tracks)))))
+
+(defn- lastfm-request []
+  (let [uri (str as-url-prefix (get user-methods (:method @lepton)) "&"
+                 (join "&" [(str "user=" (:username @lepton)) (str "artist=" (url/url-encode (:artist @lepton)))
+                            (str "startTimestamp=" (:start-timestamp @lepton))
+                            (str "endTimestamp=" (:end-timestamp @lepton))
+                            as-url-suffix]))]
+    (js/alert uri)
+    (ajax-request {:uri uri
+                   :method :get
+                   :response-format (json-response-format {:keywords? true})
+                   :handler (fn [[ok res]]
+                              (if ok
+                                (swap! lepton assoc :response (artist-tracks res))
+                                (swap! lepton assoc :response (str "Something went awry: " (:status-text res)))))})))
+
+(defn- error-check []
+  (swap! lepton assoc :error
+         (reduce (fn [es, k]
+                   (if ((get-in lepton-errors [k :f]))
+                     (conj es (get-in lepton-errors [k :e]))
+                     es))
+                 [] (keys lepton-errors))))
 
 ;; -------------------------
 ;; Views
+
+(defn- thurk-errors []
+  (let [errors (:error @lepton)]
+    (if (empty? errors)
+      [:p "All is quiet in the northern wastes."]
+      (vec (cons :p (interpose [:br] (map #(vector :span %) errors)))))))
 
 (defn- gen-input [key]
   (letfn [(change! [e] (swap! lepton assoc key (-> e .-target .-value)))]
@@ -71,20 +121,29 @@
 (defn- sraz [key]
   [:div.datepacker {:field :datepicker :id key :date-format "yyyy/mm/dd" :inline true}])
 
+(defn- submit []
+  (letfn [(submit! []
+            (do (error-check)
+                (when (empty? (:error @lepton))
+                  (lastfm-request))))]
+    [:button.btn.btn-success {:on-click submit!} "Oouh!"]))
+
 (defn home-page []
-  (fn []
-    [:div
-      [:div.page-header [:h3 "I need to water that plant in the corner"]]
-      [:div.col-md-3
-        [:div.row (method-select)]
-        [:div.row
-          (gen-input :username)]
-        [:div.row (gen-input :artist)]
-        [:div.row (date-input :start-time)]
-        [:div.row (date-input :end-time)]
-        [:div.row [:a {:href "/about"} (str "go to about page: " (:username @lepton))]]]
-      [:div.col-md-6
-        (str "I've been bitten! " (:start-timestamp @lepton) "  " (:end-timestamp @lepton))]]))
+  (do
+    (fn []
+      [:div
+        [:div.page-header [:h3 "I need to water that plant in the corner"]]
+        [:div.col-md-3
+          [:div.row (method-select)]
+          [:div.row
+            (gen-input :username)]
+          [:div.row (gen-input :artist)]
+          [:div.row (date-input :start-time)]
+          [:div.row (date-input :end-time)]
+          [:div.row (submit)]
+          [:div#errors.row (thurk-errors)]]
+        [:div.col-md-6
+         (:response @lepton)]])))
 
 (defn current-page []
   [:div [(session/get :current-page)]])

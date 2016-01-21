@@ -32,3 +32,24 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+#errors {
+  font-size: 1.25em;
+}
+
+.tracks {
+  font-size: 1.25em;
+}
+
+.tracks .track {
+  border-bottom: 1px solid #999;
+  margin-bottom: 10px;
+}
+
+.tracks .track .date {
+  font-size: smaller;
+}
+
+.tracks .track .name {
+  font-weight: bold;
+}
