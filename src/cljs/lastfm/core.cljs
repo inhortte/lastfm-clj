@@ -5,7 +5,7 @@
               [accountant.core :as accountant]
               [ajax.core :refer  [ajax-request url-request-format json-response-format]]
               [cemerick.url :as url]
-              [clojure.string :refer [join trim]]))
+              [clojure.string :refer [join trim split capitalize]]))
 
 (def ^:private as-url-prefix "http://ws.audioscrobbler.com/2.0/?method=")
 (def ^:private as-url-suffix "api_key=4d9d38032cb68351994d53a6622d5db7&format=json")
@@ -40,6 +40,10 @@
    :artist {:f #(empty? (trim (:artist @lepton))) :e "An artist is required, ya mullosk"}
    :start-timestamp {:f #(= 0 (:start-timestamp @lepton)) :e "A valid start date is recommended, muon-boy"}
    :end-timestamp {:f #(= 0 (:end-timestamp @lepton)) :e "A decent end date is your friend"}})
+
+(defn- to-camel-case  [s] 
+  (let  [[p & r]  (split s #"[-_]")] 
+    (str p (join "" (map capitalize r)))))
 
 (defn artist-tracks [res]
   (let [tracks (:track (:artisttracks res))]
